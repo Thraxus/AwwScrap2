@@ -181,6 +181,7 @@
     <Content Include="ModData\AwwScrap2\Textures\GUI\Icons\WeaponWelder.dds" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="ModData\AwwScrap2\Data\VanillaComponents.sbc" />
     <None Include="ModData\AwwScrap2\Models\Components\Custom\AgAuCoFe-5.mwm" />
     <None Include="ModData\AwwScrap2\Models\Components\Custom\FeCoAuPt-4.mwm" />
     <None Include="ModData\AwwScrap2\Models\Components\Custom\FeNi-7.mwm" />

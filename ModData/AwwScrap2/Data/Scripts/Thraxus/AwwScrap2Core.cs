@@ -1,12 +1,15 @@
 ﻿using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using AwwScrap2.Common.BaseClasses;
 using AwwScrap2.Common.Enums;
 using AwwScrap2.Support;
 using Sandbox.Definitions;
+using Sandbox.ModAPI;
 using VRage;
 using VRage.Game;
 using VRage.Game.Components;
+using VRage.Game.Definitions;
 using VRage.ObjectBuilders;
 using VRage.Utils;
 using VRageMath;
@@ -18,7 +21,7 @@ namespace AwwScrap2
 	{
 		protected override string CompName { get; } = "AwwScrap2Core";
 		protected override CompType Type { get; } = CompType.Server;
-		protected override MyUpdateOrder Schedule { get; } = MyUpdateOrder.BeforeSimulation;
+		protected override MyUpdateOrder Schedule { get; } = MyUpdateOrder.BeforeSimulation | MyUpdateOrder.AfterSimulation;
 
 		private readonly HashSet<MyBlueprintDefinition> _blueprints = new HashSet<MyBlueprintDefinition>(EqualityComparer<MyBlueprintDefinition>.Default);
 		private readonly HashSet<BlueprintClassEntry> _blueprintClasses = new HashSet<BlueprintClassEntry>(EqualityComparer<BlueprintClassEntry>.Default);
@@ -26,16 +29,23 @@ namespace AwwScrap2
 		private readonly HashSet<MyPhysicalItemDefinition> _ores = new HashSet<MyPhysicalItemDefinition>(EqualityComparer<MyPhysicalItemDefinition>.Default);
 		private readonly HashSet<MyCubeBlockDefinition> _cubes = new HashSet<MyCubeBlockDefinition>(EqualityComparer<MyCubeBlockDefinition>.Default);
 
+		public override void Init(MyObjectBuilder_SessionComponent sessionComponent)
+		{
+			base.Init(sessionComponent);
+			SetupTestItem2();
+		}
+		
 		public override void LoadData()
 		{
 			base.LoadData();
-			SetupPhysicalItem();
+			//SetupPhysicalItem();
 			//SetupTestItem2();
 		}
 
 		public override void BeforeStart()
 		{
 			base.BeforeStart();
+			
 
 			//MyDefinitionManager.Static.GetBlueprintClass()
 
@@ -53,14 +63,24 @@ namespace AwwScrap2
 			//SetupCollections();
 			//ReportDefinitionManager();
 			//WriteToLog("", ToString(), LogType.General);
-			ReportDefinitions();
-
+			//ReportDefinitions();
+			//SetupTestItem();
 			//MyPhysicalItemDefinition siliconOreDef = MyDefinitionManager.Static.GetPhysicalItemDefinition(new MyDefinitionId(typeof(MyObjectBuilder_Ore), "Silicon"));
 			//foreach (var def in MyDefinitionManager.Static.GetDefinitionsOfType<MyPhysicalItemDefinition>())
 			//{
 			//	WriteToLog("", $"{def.Id}", LogType.General);
 			//}
 
+		}
+
+		private bool _runOnce;
+		public override void UpdateAfterSimulation()
+		{
+			base.UpdateAfterSimulation();
+			if (_runOnce) return;
+			_runOnce = true;
+			ReportOreDefinitions();
+			//ReportDefinitions();
 		}
 
 		private void Playground()
@@ -103,6 +123,14 @@ namespace AwwScrap2
 				Model = Constants.KnownScrapModelLocation + Constants.Scrap2,
 				PhysicalMaterial = MyStringHash.GetOrCompute("Metal")
 			};
+
+			// 0) OB
+			MyObjectBuilder_PhysicalItemDefinition defOb = new MyObjectBuilder_PhysicalItemDefinition()
+			{
+				Id = newDef.Id
+			};
+
+			newDef.Init(defOb, (MyModContext) ModContext);
 
 			MyDefinitionManager.Static.Definitions.AddDefinition(newDef);
 
@@ -164,6 +192,8 @@ namespace AwwScrap2
 				Enabled = true,
 				BlueprintTypeId = newBp.Id.TypeId.ToString()
 			};
+
+			WriteToLog("Added", $"May have added: {newDef}", LogType.General);
 
 			//MyDefinitionManager.Static.Definitions.Definitions.
 			//MyDefinitionManager.Static.Definitions.Definitions.Add(typeof(BlueprintClassEntry));
@@ -240,6 +270,9 @@ namespace AwwScrap2
 			// 4a) Add 3b to Skits [if applicable]
 
 			// 1) Physical Item
+
+			//ReportOreDefinitions();
+
 			MyObjectBuilder_PhysicalItemDefinition newPhysDefOb = new MyObjectBuilder_PhysicalItemDefinition
 			{
 				Id = new SerializableDefinitionId
@@ -247,6 +280,11 @@ namespace AwwScrap2
 					TypeId = typeof(MyObjectBuilder_Ore),
 					SubtypeId = "BulletproofGlassScrap2"
 				},
+				AvailableInSurvival = true,
+				CanPlayerOrder = false,
+				CanSpawnFromScreen = true,
+				Enabled = true,
+				Public = true,
 				DisplayName = "Bulletproof Glass Scrap 2",
 				Icons = new[] { Constants.IconLocation + Constants.BulletproofGlassIcon },
 				Size = new Vector3(0.2, 0.2, 0.1),
@@ -256,118 +294,185 @@ namespace AwwScrap2
 				PhysicalMaterial = "Metal"
 			};
 
+			var baseDef = MyDefinitionManagerBase.GetObjectFactory().CreateInstance(newPhysDefOb.TypeId);
+			baseDef.Context = new MyModContext();
+			baseDef.Context.Init((MyModContext)ModContext);
+			baseDef.Init(newPhysDefOb, (MyModContext)ModContext);
+			baseDef.AvailableInSurvival = true;
+			baseDef.Public = true;
+
+			WriteToLog("SetupTestItem2", $"{MyDefinitionManager.Static.Definitions.AddOrRelaceDefinition(baseDef)}", LogType.General);
+			WriteToLog("SetupTestItem2", $"{MyDefinitionManager.Static.Definitions.AddOrRelaceDefinition(baseDef)}", LogType.General);
+			WriteToLog("SetupTestItem2", $"{(MyDefinitionManager.Static.TryGetPhysicalItemDefinition(baseDef.Id)).Id}", LogType.General);
+			WriteToLog("SetupTestItem2", $"{(MyDefinitionManager.Static.TryGetPhysicalItemDefinition(baseDef.Id)).IsOre}", LogType.General);
+			
+			MyPhysicalItemDefinition siliconOreDef = MyDefinitionManager.Static.GetPhysicalItemDefinition(new MyDefinitionId(typeof(MyObjectBuilder_Ore), "Silicon"));
+			ReportCustomDefinition((MyPhysicalItemDefinition) baseDef);
+			ReportCustomDefinition(siliconOreDef);
+
+
+			//ReportOreDefinitions();
+			//ReportDefinitions();
+
 			// 1b) Physical Item Def -- May not be needed... 
-			MyPhysicalItemDefinition newPhysItemDef = new MyPhysicalItemDefinition
-			{
-				Id = newPhysDefOb.Id
-			};
+			//MyPhysicalItemDefinition newPhysItemDef = new MyPhysicalItemDefinition
+			//{
+			//	Context = (MyModContext) ModContext,
+			//	Id = newPhysDefOb.Id,
+			//	Public = true
+			//};
+
+			// 0) OB
+			//MyObjectBuilder_PhysicalItemDefinition defOb = new MyObjectBuilder_PhysicalItemDefinition()
+			//{
+			//	Id = new.Id
+			//};
 
 
-			foreach (var test in MyDefinitionManager.Static.Definitions.Definitions[typeof(MyObjectBuilder_Ore)].Keys)
-			{
-				//test this	
-			}
+
+			//MyObjectBuilder_LCDTextureDefinition lcdDef = new MyObjectBuilder_LCDTextureDefinition
+			//{
+			//	Id = baseDef.Id
+			//};
+
+			//MyDefinitionManager.Static.Definitions.Definitions[typeof(MyObjectBuilder_LCDTextureDefinition)].Add(lcdDef.SubtypeId, baseDef);
+
+			//MyDefinitionManager.Static.GetLoadingSet().Definitions
+			//WriteToLog("SetupTestItem2", $"{MyDefinitionManager.Static.GetLoadingSet().Definitions.Count}",LogType.General);
+			//MyDefinitionManager.Static.Definitions.AddDefinition(baseDef);
+
+			//MyDefinitionPostprocessor.Bundle bundle = default(MyDefinitionPostprocessor.Bundle);
+			//bundle.Context = (MyModContext)ModContext;
+			//bundle.Set = new MyDefinitionSet();
+			//MyDefinitionPostprocessor.Bundle definitions = bundle;
+			//bundle.Definitions.Add(baseDef.Id.SubtypeId, baseDef);
+
+
+
+			//MyDefinitionManagerBase.GetPostProcessor(baseDef.GetObjectBuilder().TypeId). .AfterLoaded(ref definitions);
+			//foreach (MyDefinitionPostprocessor postProcessor in MyDefinitionManagerBase.GetPostProcessor(baseDef.GetObjectBuilder().TypeId))
+			//{
+			//if (definitionSet.Definitions.TryGetValue(myDefinitionPostprocessor.DefinitionType, out definitions.Definitions))
+			//{
+			//postProcessor.AfterLoaded(ref definitions);
+			//}
+			//}
+
+
+			//MyDefinitionManager.Static.Definitions.AddDefinition(baseDef);
+			//MyDefinitionManager.Static.Definitions.AddOrRelaceDefinition(baseDef);
+
+
+
+			//foreach (var test in MyDefinitionManager.Static.Definitions.Definitions[typeof(MyObjectBuilder_Ore)].Keys)
+			//{
+			//	//test this	
+			//}
 
 			// 2) Blueprint
-			MyPhysicalItemDefinition siliconIngotDef = MyDefinitionManager.Static.GetPhysicalItemDefinition(new MyDefinitionId(typeof(MyObjectBuilder_Ingot), "Silicon"));
-			MyPhysicalItemDefinition siliconOreDef = MyDefinitionManager.Static.GetPhysicalItemDefinition(new MyDefinitionId(typeof(MyObjectBuilder_Ore), "Silicon"));
+			//MyPhysicalItemDefinition siliconIngotDef = MyDefinitionManager.Static.GetPhysicalItemDefinition(new MyDefinitionId(typeof(MyObjectBuilder_Ingot), "Silicon"));
 
-			BlueprintItem preReq = new BlueprintItem
-			{
-				Id = newPhysItemDef.Id,
-				Amount = "1"
-			};
+			//BlueprintItem preReq = new BlueprintItem
+			//{
+			//	Id = newPhysItemDef.Id,
+			//	Amount = "1"
+			//};
 
-			BlueprintItem results = new BlueprintItem
-			{
-				Id = siliconIngotDef.Id,
-				Amount = "1"
-			};
+			//BlueprintItem results = new BlueprintItem
+			//{
+			//	Id = siliconIngotDef.Id,
+			//	Amount = "1"
+			//};
 
-			MyObjectBuilder_BlueprintDefinition newBpDefOb = new MyObjectBuilder_BlueprintDefinition
-			{
-				Id = new MyDefinitionId(typeof(MyObjectBuilder_BlueprintDefinition), "BulletproofGlassToIngot"),
-				DisplayName = "Bulletproof Glass Scrap",
-				Icons = new[]
-				{
-					Constants.IconLocation + Constants.BulletproofGlassIcon
-				},
-				Prerequisites = new[]
-				{
-					preReq
-				},
-				Results = new[]
-				{
-					results
-				},
-
-				BaseProductionTimeInSeconds = 0.04f
-			};
-
-			MyBlueprintDefinition newBpDef = new MyBlueprintDefinition
-			{
-				Id = newBpDefOb.Id
-			};
-
-			//MyBlueprintDefinition newBp = new MyBlueprintDefinition
+			//MyObjectBuilder_BlueprintDefinition newBpDefOb = new MyObjectBuilder_BlueprintDefinition
 			//{
 			//	Id = new MyDefinitionId(typeof(MyObjectBuilder_BlueprintDefinition), "BulletproofGlassToIngot"),
-			//	DisplayNameString = "Bulletproof Glass Scrap",
+			//	DisplayName = "Bulletproof Glass Scrap",
 			//	Icons = new[]
 			//	{
 			//		Constants.IconLocation + Constants.BulletproofGlassIcon
 			//	},
 			//	Prerequisites = new[]
 			//	{
-			//		new MyBlueprintDefinitionBase.Item
-			//		{
-			//			Amount = 1,
-			//			Id = siliconOreDef.Id
-			//		}
+			//		preReq
 			//	},
 			//	Results = new[]
 			//	{
-			//		new MyBlueprintDefinitionBase.Item
-			//		{
-			//			Amount = (MyFixedPoint) 6.75,
-			//			Id = siliconIngotDef.Id
-			//		}
+			//		results
 			//	},
+
 			//	BaseProductionTimeInSeconds = 0.04f
 			//};
 
-			// 3a) Blueprint Class OB
-			MyObjectBuilder_BlueprintClassDefinition newBpClassDefOb = new MyObjectBuilder_BlueprintClassDefinition
-			{
-				Id = new SerializableDefinitionId
-				{
-					TypeId = typeof(MyObjectBuilder_BlueprintClassDefinition),
-					SubtypeId = "AwwScrap2"
-				},
-				DisplayName = "Scrap Recycling",
-				Description = "Scrap Recycling",
-				Icons = new[]
-				{
-					"Textures\\GUI\\Icons\\component\\ScrapMetalComponent.dds"
-				},
-				HighlightIcon = "Textures\\GUI\\Icons\\component\\ScrapMetalComponent.dds",
-				InputConstraintIcon = "Textures\\GUI\\Icons\\filter_ore.dds",
-				OutputConstraintIcon = "Textures\\GUI\\Icons\\filter_ingot.dds"
-			};
+			//MyBlueprintDefinition newBpDef = new MyBlueprintDefinition
+			//{
+			//	Id = newBpDefOb.Id
+			//};
 
-			// 3b) Blueprint Class Definition
-			MyBlueprintClassDefinition newBpClassDef = new MyBlueprintClassDefinition
-			{
-				Id = newBpClassDefOb.Id
-			};
+			////MyBlueprintDefinition newBp = new MyBlueprintDefinition
+			////{
+			////	Id = new MyDefinitionId(typeof(MyObjectBuilder_BlueprintDefinition), "BulletproofGlassToIngot"),
+			////	DisplayNameString = "Bulletproof Glass Scrap",
+			////	Icons = new[]
+			////	{
+			////		Constants.IconLocation + Constants.BulletproofGlassIcon
+			////	},
+			////	Prerequisites = new[]
+			////	{
+			////		new MyBlueprintDefinitionBase.Item
+			////		{
+			////			Amount = 1,
+			////			Id = siliconOreDef.Id
+			////		}
+			////	},
+			////	Results = new[]
+			////	{
+			////		new MyBlueprintDefinitionBase.Item
+			////		{
+			////			Amount = (MyFixedPoint) 6.75,
+			////			Id = siliconIngotDef.Id
+			////		}
+			////	},
+			////	BaseProductionTimeInSeconds = 0.04f
+			////};
 
-			// 3c) Add Blueprint to Blueprint Class (creates an entry)
-			//x.AddBlueprint(newBpDef);
+			//// 3a) Blueprint Class OB
+			//MyObjectBuilder_BlueprintClassDefinition newBpClassDefOb = new MyObjectBuilder_BlueprintClassDefinition
+			//{
+			//	Id = new SerializableDefinitionId
+			//	{
+			//		TypeId = typeof(MyObjectBuilder_BlueprintClassDefinition),
+			//		SubtypeId = "AwwScrap2"
+			//	},
+			//	DisplayName = "Scrap Recycling",
+			//	Description = "Scrap Recycling",
+			//	Icons = new[]
+			//	{
+			//		"Textures\\GUI\\Icons\\component\\ScrapMetalComponent.dds"
+			//	},
+			//	HighlightIcon = "Textures\\GUI\\Icons\\component\\ScrapMetalComponent.dds",
+			//	InputConstraintIcon = "Textures\\GUI\\Icons\\filter_ore.dds",
+			//	OutputConstraintIcon = "Textures\\GUI\\Icons\\filter_ingot.dds"
+			//};
+
+			//// 3b) Blueprint Class Definition
+			//MyBlueprintClassDefinition newBpClassDef = new MyBlueprintClassDefinition
+			//{
+			//	Id = newBpClassDefOb.Id
+			//};
+
+			////ReportDefinitions();
+			////ReportDefinitionManager();
+			////ReportCustomDefinition(newPhysItemDef);
+			////ReportOreDefinitions();
+
+			////MyDefinitionManagerBase.GetPostProcessor(typeof(MyObjectBuilder_Ore)).AfterPostprocess();
+			//// 3c) Add Blueprint to Blueprint Class (creates an entry)
+			////x.AddBlueprint(newBpDef);
 		}
 
 		private void AddBlueprintClassToProductionBlocks(MyBlueprintClassDefinition newBpClassDef)
 		{
-
 			// 4a) Add Blueprint Class to MyRefineryDefinitions (large refinery, arc furnace, modded?)
 			foreach (var def in MyDefinitionManager.Static.GetDefinitionsOfType<MyRefineryDefinition>())
 			{
@@ -483,6 +588,14 @@ namespace AwwScrap2
 			_report.AppendFormat("** Count: {0} **", MyDefinitionManager.Static.Definitions.Definitions.Count);
 			_report.AppendLine("\n");
 
+			//foreach (var defDic in MyDefinitionManager.Static.GetLoadingSet().Definitions)
+			//{
+			//	_report.AppendLine();
+			//	_report.AppendFormat("{0,-4}Definition Type: {1}", " ", defDic.Key);
+			//}
+
+			//_report.AppendLine("\n");
+
 			foreach (var defDic in MyDefinitionManager.Static.Definitions.Definitions)
 			{
 				_report.AppendLine();
@@ -498,6 +611,35 @@ namespace AwwScrap2
 				//}
 				//_report.AppendLine();
 			}
+
+			_report.AppendLine("\n");
+			foreach (var defDic in MyDefinitionManager.Static.Definitions.Definitions.Where(x => x.Key != typeof(MyObjectBuilder_LCDTextureDefinition) && x.Key != typeof(MyObjectBuilder_PlanetGeneratorDefinition)))
+			{
+				_report.AppendLine("\n");
+				_report.AppendFormat("{0,-8}Definition Type: {1}", " ", defDic.Key);
+				foreach (var def in defDic.Value)
+				{
+					_report.AppendLine();
+					_report.AppendFormat("{0,-12}Definition Key: {1}", " ", def.Key);
+
+					_report.AppendLine();
+					_report.AppendFormat("{0,-16}Definition Value: {1}", " ", def.Value);
+					//	_report.AppendLine();
+					//	_report.AppendFormat("{0,-16}Definition Value: {1}", " ", def.Value.Id);
+					//	_report.AppendLine();
+					//	_report.AppendFormat("{0,-16}Definition Value: {1}", " ", def.Value.Id.SubtypeId);
+					//	_report.AppendLine();
+					//	_report.AppendFormat("{0,-16}Definition Value: {1}", " ", def.Value.Id.TypeId);
+					//	_report.AppendLine();
+					//	_report.AppendFormat("{0,-16}Definition Value: {1}", " ", def.Value.Id.SubtypeName);
+					//	_report.AppendLine();
+					//	_report.AppendFormat("{0,-16}Definition Value: {1}", " ", def.Value.Context);
+					//	_report.AppendLine();
+					//	_report.AppendFormat("{0,-16}Definition Value: {1}", " ", def.Value.Public);
+					//	_report.AppendLine();
+					//	_report.AppendFormat("{0,-16}Definition Value: {1}", " ", def.Value.Icons);
+				}
+			}
 			_report.AppendLine();
 			WriteToLog("", _report.ToString(), LogType.General);
 		}
@@ -509,6 +651,41 @@ namespace AwwScrap2
 			_report.AppendLine("** Definition Manager Rundown **");
 			_report.AppendLine();
 			foreach (var def in MyDefinitionManager.Static.GetAllDefinitions())
+			{
+				_report.AppendFormat("{0,-4}Definition TypeId: {1}", " ", def.Id.TypeId);
+				_report.AppendLine();
+				_report.AppendFormat("{0,-4}Definition SubtypeId: {1}", " ", def.Id.SubtypeId);
+				_report.AppendLine();
+				_report.AppendFormat("{0,-4}Definition: {1}", " ", def);
+				_report.AppendLine("\n");
+			}
+			_report.AppendLine();
+			WriteToLog("", _report.ToString(), LogType.General);
+		}
+
+		private void ReportCustomDefinition(MyPhysicalItemDefinition def)
+		{
+			_report.Clear();
+			_report.AppendLine("\n");
+			_report.AppendLine("** Custom Physical Item Definition **");
+			_report.AppendLine();
+			_report.AppendFormat("{0,-4}Definition TypeId: {1}", " ", def.Id.TypeId);
+			_report.AppendLine();
+			_report.AppendFormat("{0,-4}Definition SubtypeId: {1}", " ", def.Id.SubtypeId);
+			_report.AppendLine();
+			_report.AppendFormat("{0,-4}Definition: {1}", " ", def);
+			_report.AppendLine("\n");
+			//_report.AppendLine();
+			WriteToLog("", _report.ToString(), LogType.General);
+		}
+
+		private void ReportOreDefinitions()
+		{
+			_report.Clear();
+			_report.AppendLine("\n");
+			_report.AppendLine("** Ore Definition Rundown **");
+			_report.AppendLine();
+			foreach (var def in MyDefinitionManager.Static.GetAllDefinitions().Where(x => x.Id.TypeId == typeof(MyObjectBuilder_Ore)))
 			{
 				_report.AppendFormat("{0,-4}Definition TypeId: {1}", " ", def.Id.TypeId);
 				_report.AppendLine();
